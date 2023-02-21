@@ -1,0 +1,282 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/printer"
+	"go/token"
+	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"golang.org/x/tools/go/ast/astutil"
+)
+
+func main() {
+	if len(os.Args)%2 != 1 {
+		log.Fatal("Arguments should be a list of pairs file path - function name.")
+	}
+	tasks := make(map[string][]string)
+	for i := 1; i != len(os.Args); i += 2 {
+		if functions, found := tasks[os.Args[i]]; found {
+			functions = append(functions, os.Args[i+1])
+			tasks[os.Args[i]] = functions
+		} else {
+			tasks[os.Args[i]] = []string{os.Args[i+1]}
+		}
+	}
+	numberOfCases := make(map[string]map[string]int)
+	for filePath, functions := range tasks {
+		numberOfCases[filePath] = make(map[string]int)
+		if err := os.MkdirAll(filepath.Dir("tmp/"+filePath), 0770); err != nil {
+			panic(err)
+		}
+		os.Rename(filePath, "tmp/"+filePath)
+		old, err := os.Open("tmp/" + filePath)
+		if err != nil {
+			panic(err)
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, filePath, old, parser.ParseComments)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, function := range functions {
+			file, numberOfCases[filePath][function] = updateFunction(file, filePath, function)
+		}
+		file.Decls = append([]ast.Decl{&ast.GenDecl{
+			Tok:   token.IMPORT,
+			Specs: []ast.Spec{&ast.ImportSpec{Path: &ast.BasicLit{Kind: token.STRING, Value: "\"github.com/hajimehoshi/ebiten/v2/coverage\""}}},
+		}}, file.Decls...)
+		new, err := os.Create(filePath)
+		if err != nil {
+			panic(err)
+		}
+		printer.Fprint(new, fset, file)
+		new.Close()
+		old.Close()
+	}
+	exec.Command("go", "clean", "-testcache").Run()
+	exec.Command("go", "test", "./...").Run()
+	subpackages := []string{"audio/internal/convert", "audio/vorbis", "audio",
+		"colorm", "ebitenutil", "examples/2048/2048", "internal/affine",
+		"internal/atlas", "internal/buffered", "internal/gamepaddb",
+		"internal/graphics", "internal/graphicscommand", "internal/graphicsdriver/metal/mtl",
+		"internal/packing", "internal/processtest", "internal/restorable", "internal/shader",
+		"internal/shaderir", "text"}
+	coverages := make(map[string]map[string]float64)
+	for filePath, functions := range tasks {
+		coverages[filePath] = make(map[string]float64)
+		err := os.Remove(filePath)
+		if err != nil {
+			panic(err)
+		}
+		err = os.Rename("tmp/"+filePath, filePath)
+		if err != nil {
+			panic(err)
+		}
+		for _, function := range functions {
+			fileLines := make(map[string]bool)
+			file, err := os.Open(coverageId(filePath, function))
+			if err == nil {
+				fileScanner := bufio.NewScanner(file)
+				fileScanner.Split(bufio.ScanLines)
+				for fileScanner.Scan() {
+					fileLines[fileScanner.Text()] = true
+				}
+				file.Close()
+				os.Remove(coverageId(filePath, function))
+			}
+			for _, subpackage := range subpackages {
+				file, err = os.Open(subpackage + "/" + coverageId(filePath, function))
+				if err == nil {
+					fileScanner := bufio.NewScanner(file)
+					fileScanner.Split(bufio.ScanLines)
+					for fileScanner.Scan() {
+						fileLines[fileScanner.Text()] = true
+					}
+					file.Close()
+					os.Remove(subpackage + "/" + coverageId(filePath, function))
+				}
+			}
+			coverages[filePath][function] = float64(len(fileLines)) /
+				float64(numberOfCases[filePath][function])
+			fmt.Println("-----------------------------------------------")
+			fmt.Println(filePath, function, coverages[filePath][function])
+			fmt.Println(numberOfCases[filePath][function], " total branches.")
+			fmt.Println()
+			lines := make([]string, 0, len(fileLines))
+			for k := range fileLines {
+				lines = append(lines, k)
+			}
+			sort.Strings(lines)
+			for _, line := range lines {
+				fmt.Println(line)
+			}
+			fmt.Println()
+			fmt.Println()
+		}
+	}
+	os.RemoveAll("tmp")
+}
+
+func updateFunction(file *ast.File, filePath string, functionName string) (*ast.File, int) {
+	branchId := 0
+	numberOfCases := 0
+	astutil.Apply(file, nil, func(c *astutil.Cursor) bool {
+		n := c.Node()
+		switch x := n.(type) {
+		case *ast.FuncDecl:
+			if x.Name.Name == functionName {
+				c.Replace(astutil.Apply(n, nil, func(c *astutil.Cursor) bool {
+					n := c.Node()
+					switch x := n.(type) {
+					case *ast.IfStmt:
+						cond := x.Cond
+						c.Replace(&ast.IfStmt{
+							Init: x.Init,
+							Cond: &ast.CallExpr{
+								Fun: &ast.Ident{Name: "coverage.BranchCoverage"},
+								Args: []ast.Expr{
+									&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+										coverageId(filePath, functionName) + "\""},
+									&ast.BasicLit{Kind: token.INT, Value: fmt.Sprint(branchId)},
+									cond,
+								},
+							},
+							Body: x.Body,
+							Else: x.Else,
+						})
+						branchId++
+						numberOfCases += 2
+					case *ast.BinaryExpr:
+						if x.Op == token.LAND || x.Op == token.LOR {
+							c.Replace(&ast.BinaryExpr{
+								Op: x.Op,
+								X: &ast.CallExpr{
+									Fun: &ast.Ident{Name: "coverage.BranchCoverage"},
+									Args: []ast.Expr{
+										&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+											coverageId(filePath, functionName) + "\""},
+										&ast.BasicLit{Kind: token.INT, Value: fmt.Sprint(branchId)},
+										x.X,
+									},
+								},
+								Y: x.Y,
+							})
+							branchId++
+							numberOfCases += 2
+						}
+					case *ast.SwitchStmt:
+						newBody := switchBody(x.Body.List, branchId, filePath, functionName)
+						c.Replace(&ast.SwitchStmt{
+							Init: x.Init,
+							Tag:  x.Tag,
+							Body: &ast.BlockStmt{List: newBody},
+						})
+						branchId++
+						numberOfCases += len(newBody)
+					case *ast.TypeSwitchStmt:
+						newBody := switchBody(x.Body.List, branchId, filePath, functionName)
+						c.Replace(&ast.TypeSwitchStmt{
+							Init:   x.Init,
+							Assign: x.Assign,
+							Body:   &ast.BlockStmt{List: newBody},
+						})
+						branchId++
+						numberOfCases += len(newBody)
+					case *ast.RangeStmt:
+						newRange := *x
+						newRange.Body.List = append([]ast.Stmt{&ast.ExprStmt{X: &ast.CallExpr{
+							Fun: &ast.Ident{Name: "coverage.OutputCoverage"},
+							Args: []ast.Expr{
+								&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+									coverageId(filePath, functionName) + "\""},
+								&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " enter") + "\\n\""},
+							},
+						}}}, newRange.Body.List...)
+						c.Replace(&ast.BlockStmt{
+							List: []ast.Stmt{&newRange,
+								&ast.ExprStmt{X: &ast.CallExpr{
+									Fun: &ast.Ident{Name: "coverage.OutputCoverage"},
+									Args: []ast.Expr{
+										&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+											coverageId(filePath, functionName) + "\""},
+										&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " exit") + "\\n\""},
+									},
+								}}},
+						})
+						branchId++
+						numberOfCases += 2
+					case *ast.ForStmt:
+						newFor := *x
+						newFor.Body.List = append([]ast.Stmt{&ast.ExprStmt{X: &ast.CallExpr{
+							Fun: &ast.Ident{Name: "coverage.OutputCoverage"},
+							Args: []ast.Expr{
+								&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+									coverageId(filePath, functionName) + "\""},
+								&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " enter") + "\\n\""},
+							},
+						}}}, newFor.Body.List...)
+						c.Replace(&ast.BlockStmt{
+							List: []ast.Stmt{&newFor,
+								&ast.ExprStmt{X: &ast.CallExpr{
+									Fun: &ast.Ident{Name: "coverage.OutputCoverage"},
+									Args: []ast.Expr{
+										&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+											coverageId(filePath, functionName) + "\""},
+										&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " exit") + "\\n\""},
+									},
+								}}},
+						})
+						branchId++
+						numberOfCases += 2
+					}
+					return true
+				}))
+			}
+		}
+		return true
+	})
+	return file, numberOfCases
+}
+
+func switchBody(body []ast.Stmt, branchId int, filePath, functionName string) []ast.Stmt {
+	newBody := []ast.Stmt{}
+	hasDefault := false
+	for caseId, c := range body {
+		newCase := *c.(*ast.CaseClause)
+		hasDefault = hasDefault || newCase.List == nil
+		newCase.Body = append([]ast.Stmt{&ast.ExprStmt{X: &ast.CallExpr{
+			Fun: &ast.Ident{Name: "coverage.OutputCoverage"},
+			Args: []ast.Expr{
+				&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+					coverageId(filePath, functionName) + "\""},
+				&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, caseId) + "\\n\""},
+			},
+		}}}, newCase.Body...)
+		newBody = append(newBody, &newCase)
+	}
+	if !hasDefault {
+		newCase := ast.CaseClause{Body: []ast.Stmt{&ast.ExprStmt{X: &ast.CallExpr{
+			Fun: &ast.Ident{Name: "coverage.OutputCoverage"},
+			Args: []ast.Expr{
+				&ast.BasicLit{Kind: token.STRING, Value: "\"" +
+					coverageId(filePath, functionName) + "\""},
+				&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " default") + "\\n\""},
+			},
+		}}}}
+		newBody = append(newBody, &newCase)
+	}
+	return newBody
+}
+
+func coverageId(filePath, functionName string) string {
+	return "coverage_" + strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(filePath,
+		"\\", "_"), "/", "_"), ".", "_") + "_" + functionName
+}
