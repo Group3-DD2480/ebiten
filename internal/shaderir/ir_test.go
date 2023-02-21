@@ -1032,6 +1032,87 @@ void main(void) {
 	gl_FragColor = F0(gl_FragCoord, V0, V1);
 }`,
 		},
+		{
+			Name: "VertexFuncWithTexture",
+			Program: shaderir.Program{
+				TextureCount: 1,
+				VertexFunc: shaderir.VertexFunc{
+					Block: block(
+						nil,
+						0,
+						exprStmt(
+							shaderir.Expr{
+								Type:  shaderir.TextureVariable,
+								Index: 0,
+							},
+						),
+					),
+				},
+			},
+			GlslVS: glslVertexPrelude + `
+uniform sampler2D T0;
+
+void main(void) {
+	T0;
+}`,
+			GlslFS: glslFragmentPrelude + `
+uniform sampler2D T0;`,
+			Metal: msl.Prelude + `
+
+vertex Varyings Vertex(
+	uint vid [[vertex_id]],
+	const device Attributes* attributes [[buffer(0)]],
+	texture2d<float> T0 [[texture(0)]]) {
+	Varyings varyings = {};
+	T0;
+	return varyings;
+}`,
+		},
+		{
+			Name: "FragmentFuncWithTexture",
+			Program: shaderir.Program{
+				TextureCount: 1,
+				FragmentFunc: shaderir.FragmentFunc{
+					Block: block(
+						nil,
+						0,
+						exprStmt(
+							shaderir.Expr{
+								Type:  shaderir.TextureVariable,
+								Index: 0,
+							},
+						),
+					),
+				},
+			},
+			GlslVS: glslVertexPrelude + `
+uniform sampler2D T0;
+
+vec4 F0(in vec4 l0);
+
+vec4 F0(in vec4 l0) {
+	T0;
+}`,
+			GlslFS: glslFragmentPrelude + `
+uniform sampler2D T0;
+
+vec4 F0(in vec4 l0);
+
+vec4 F0(in vec4 l0) {
+	T0;
+}
+
+void main(void) {
+	gl_FragColor = F0(gl_FragCoord);
+}`,
+			Metal: msl.Prelude + `
+
+fragment float4 Fragment(
+	Varyings varyings [[stage_in]],
+	texture2d<float> T0 [[texture(0)]]) {
+	T0;
+}`,
+		},
 	}
 	for _, tc := range tests {
 		tc := tc
