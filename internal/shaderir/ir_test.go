@@ -266,6 +266,47 @@ void F0(void) {
 }`,
 		},
 		{
+			Name: "TwoFuncs",
+			Program: shaderir.Program{
+				Funcs: []shaderir.Func{
+					{
+						Index: 0,
+					},
+					{
+						Index: 1,
+					},
+				},
+			},
+			GlslVS: glslVertexPrelude + `
+void F0(void);
+void F1(void);
+
+void F0(void) {
+}
+
+void F1(void) {
+}`,
+			GlslFS: glslFragmentPrelude + `
+void F0(void);
+void F1(void);
+
+void F0(void) {
+}
+
+void F1(void) {
+}`,
+			Metal: msl.Prelude + `
+
+void F0(void);
+void F1(void);
+
+void F0(void) {
+}
+
+void F1(void) {
+}`,
+		},
+		{
 			Name: "FuncParams",
 			Program: shaderir.Program{
 				Funcs: []shaderir.Func{
