@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -61,7 +60,14 @@ func main() {
 		new.Close()
 		old.Close()
 	}
-	exec.Command("go", "test").Run()
+	exec.Command("go", "clean", "-testcache").Run()
+	exec.Command("go", "test", "./...").Run()
+	subpackages := []string{"audio/internal/convert", "audio/vorbis", "audio",
+		"colorm", "ebitenutil", "examples/2048/2048", "internal/affine",
+		"internal/atlas", "internal/buffered", "internal/gamepaddb",
+		"internal/graphics", "internal/graphicscommand", "internal/graphicsdriver/metal/mtl",
+		"internal/packing", "internal/processtest", "internal/restorable", "internal/shader",
+		"internal/shaderir", "text"}
 	coverages := make(map[string]map[string]float64)
 	for filePath, functions := range tasks {
 		coverages[filePath] = make(map[string]float64)
@@ -74,23 +80,31 @@ func main() {
 			panic(err)
 		}
 		for _, function := range functions {
+			fileLines := make(map[string]bool)
 			file, err := os.Open(coverageId(filePath, function))
-			if errors.Is(err, os.ErrNotExist) {
-				coverages[filePath][function] = 0
-			} else if err != nil {
-				panic(err)
-			} else {
+			if err == nil {
 				fileScanner := bufio.NewScanner(file)
 				fileScanner.Split(bufio.ScanLines)
-				fileLines := make(map[string]bool)
 				for fileScanner.Scan() {
 					fileLines[fileScanner.Text()] = true
 				}
-				coverages[filePath][function] = float64(len(fileLines)) /
-					float64(numberOfCases[filePath][function])
+				file.Close()
+				os.Remove(coverageId(filePath, function))
 			}
-			file.Close()
-			os.Remove(coverageId(filePath, function))
+			for _, subpackage := range subpackages {
+				file, err = os.Open(subpackage + "/" + coverageId(filePath, function))
+				if err == nil {
+					fileScanner := bufio.NewScanner(file)
+					fileScanner.Split(bufio.ScanLines)
+					for fileScanner.Scan() {
+						fileLines[fileScanner.Text()] = true
+					}
+					file.Close()
+					os.Remove(subpackage + "/" + coverageId(filePath, function))
+				}
+			}
+			coverages[filePath][function] = float64(len(fileLines)) /
+				float64(numberOfCases[filePath][function])
 			fmt.Println(filePath, function, coverages[filePath][function])
 		}
 	}
