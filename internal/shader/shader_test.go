@@ -213,3 +213,82 @@ func TestCompile(t *testing.T) {
 		})
 	}
 }
+
+func TestCompileThrowsErrors(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("file open might not be implemented in this environment")
+	}
+
+    directory := "badtestdata"
+
+	files, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type testcase struct {
+		Name  string
+		Src   []byte
+        Msg   string
+	}
+
+	fnames := map[string]struct{}{}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		fnames[f.Name()] = struct{}{}
+	}
+
+	tests := []testcase{}
+	for n := range fnames {
+		if !strings.HasSuffix(n, ".go") {
+			continue
+		}
+
+		src, err := os.ReadFile(filepath.Join(directory, n))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		name := n[:len(n)-len(".go")]
+
+		tc := testcase{
+			Name: name,
+			Src:  src,
+		}
+
+		msg := name + ".expected.msg"
+		if _, ok := fnames[msg]; ok {
+			msg, err := os.ReadFile(filepath.Join(directory, msg))
+			if err != nil {
+				t.Fatal(err)
+			}
+            tc.Msg = string(msg[:])
+		}
+
+		tests = append(tests, tc)
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "", tc.Src, parser.AllErrors)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = shader.Compile(fset, f, "Vertex", "Fragment", 0)
+			if err == nil {
+				t.Error("Error was nil when not expected")
+				return
+			}
+            got := strings.Join(strings.Fields(err.Error()), " ")
+            wants := strings.Join(strings.Fields(tc.Msg), " ")
+            if !strings.Contains(got, wants) {
+                t.Errorf("Expected \"%s\" to be in \"%s\"", wants, got)
+                return
+            }
+		})
+	}
+}
