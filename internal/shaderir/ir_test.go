@@ -167,6 +167,7 @@ func TestOutput(t *testing.T) {
 			Program: shaderir.Program{},
 			GlslVS:  glsl.VertexPrelude(glsl.GLSLVersionDefault),
 			GlslFS:  glsl.FragmentPrelude(glsl.GLSLVersionDefault),
+			Metal:   msl.Prelude,
 		},
 		{
 			Name: "Uniform",
@@ -179,6 +180,7 @@ func TestOutput(t *testing.T) {
 uniform float U0;`,
 			GlslFS: glslFragmentPrelude + `
 uniform float U0;`,
+			Metal: msl.Prelude,
 		},
 		{
 			Name: "UniformStruct",
@@ -204,6 +206,7 @@ struct S0 {
 };
 
 uniform S0 U0;`,
+			Metal: msl.Prelude,
 		},
 		{
 			Name: "Vars",
@@ -225,6 +228,16 @@ varying vec3 V0;`,
 			GlslFS: glslFragmentPrelude + `
 uniform float U0;
 varying vec3 V0;`,
+			Metal: msl.Prelude + `
+
+struct Attributes {
+	float2 M0;
+};
+
+struct Varyings {
+	float4 Position [[position]];
+	float3 M0;
+};`,
 		},
 		{
 			Name: "Func",
@@ -241,6 +254,12 @@ void F0(void);
 void F0(void) {
 }`,
 			GlslFS: glslFragmentPrelude + `
+void F0(void);
+
+void F0(void) {
+}`,
+			Metal: msl.Prelude + `
+
 void F0(void);
 
 void F0(void) {
@@ -273,6 +292,12 @@ void F0(in float l0, in vec2 l1, in vec4 l2, out mat4 l3);
 
 void F0(in float l0, in vec2 l1, in vec4 l2, out mat4 l3) {
 }`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, float2 l1, float4 l2, thread float4x4& l3);
+
+void F0(float l0, float2 l1, float4 l2, thread float4x4& l3) {
+}`,
 		},
 		{
 			Name: "FuncReturn",
@@ -304,6 +329,13 @@ float F0(in float l0) {
 float F0(in float l0);
 
 float F0(in float l0) {
+	return l0;
+}`,
+			Metal: msl.Prelude + `
+
+float F0(float l0);
+
+float F0(float l0) {
 	return l0;
 }`,
 		},
@@ -339,6 +371,14 @@ void F0(in float l0, out float l1);
 void F0(in float l0, out float l1) {
 	mat4 l2 = mat4(0);
 	mat4 l3 = mat4(0);
+}`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, thread float& l1);
+
+void F0(float l0, thread float& l1) {
+	float4x4 l2 = float4x4(0);
+	float4x4 l3 = float4x4(0);
 }`,
 		},
 		{
@@ -394,6 +434,18 @@ void F0(in float l0, out float l1) {
 		mat4 l5 = mat4(0);
 	}
 }`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, thread float& l1);
+
+void F0(float l0, thread float& l1) {
+	float4x4 l2 = float4x4(0);
+	float4x4 l3 = float4x4(0);
+	{
+		float4x4 l4 = float4x4(0);
+		float4x4 l5 = float4x4(0);
+	}
+}`,
 		},
 		{
 			Name: "Add",
@@ -433,6 +485,13 @@ void F0(in float l0, in float l1, out float l2) {
 void F0(in float l0, in float l1, out float l2);
 
 void F0(in float l0, in float l1, out float l2) {
+	l2 = (l0) + (l1);
+}`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, float l1, thread float& l2);
+
+void F0(float l0, float l1, thread float& l2) {
 	l2 = (l0) + (l1);
 }`,
 		},
@@ -475,6 +534,13 @@ void F0(in bool l0, in float l1, in float l2, out float l3) {
 void F0(in bool l0, in float l1, in float l2, out float l3);
 
 void F0(in bool l0, in float l1, in float l2, out float l3) {
+	l3 = (l0) ? (l1) : (l2);
+}`,
+			Metal: msl.Prelude + `
+
+void F0(bool l0, float l1, float l2, thread float& l3);
+
+void F0(bool l0, float l1, float l2, thread float& l3) {
 	l3 = (l0) ? (l1) : (l2);
 }`,
 		},
@@ -525,6 +591,14 @@ void F0(in float l0, in float l1, out vec2 l2) {
 	F1();
 	l2 = F2(l0, l1);
 }`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, float l1, thread float2& l2);
+
+void F0(float l0, float l1, thread float2& l2) {
+	F1();
+	l2 = F2(l0, l1);
+}`,
 		},
 		{
 			Name: "BuiltinFunc",
@@ -566,6 +640,13 @@ void F0(in float l0, in float l1, out float l2);
 void F0(in float l0, in float l1, out float l2) {
 	l2 = min(l0, l1);
 }`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, float l1, thread float& l2);
+
+void F0(float l0, float l1, thread float& l2) {
+	l2 = min(l0, l1);
+}`,
 		},
 		{
 			Name: "FieldSelector",
@@ -603,6 +684,13 @@ void F0(in vec4 l0, out vec2 l1) {
 void F0(in vec4 l0, out vec2 l1);
 
 void F0(in vec4 l0, out vec2 l1) {
+	l1 = (l0).xz;
+}`,
+			Metal: msl.Prelude + `
+
+void F0(float4 l0, thread float2& l1);
+
+void F0(float4 l0, thread float2& l1) {
 	l1 = (l0).xz;
 }`,
 		},
@@ -669,6 +757,17 @@ void F0(in float l0, in float l1, out float l2) {
 		l2 = l1;
 	}
 }`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, float l1, thread float& l2);
+
+void F0(float l0, float l1, thread float& l2) {
+	if ((l0) == (0.0)) {
+		l2 = l0;
+	} else {
+		l2 = l1;
+	}
+}`,
 		},
 		{
 			Name: "For",
@@ -720,6 +819,15 @@ void F0(in float l0, in float l1, out float l2) {
 void F0(in float l0, in float l1, out float l2);
 
 void F0(in float l0, in float l1, out float l2) {
+	for (int l3 = 0; l3 < 100; l3++) {
+		l2 = l0;
+	}
+}`,
+			Metal: msl.Prelude + `
+
+void F0(float l0, float l1, thread float& l2);
+
+void F0(float l0, float l1, thread float& l2) {
 	for (int l3 = 0; l3 < 100; l3++) {
 		l2 = l0;
 	}
@@ -945,6 +1053,30 @@ void main(void) {
 uniform float U0;
 varying float V0;
 varying vec2 V1;`,
+			Metal: msl.Prelude + `
+
+struct Attributes {
+	float4 M0;
+	float M1;
+	float2 M2;
+};
+
+struct Varyings {
+	float4 Position [[position]];
+	float M0;
+	float2 M1;
+};
+
+vertex Varyings Vertex(
+	uint vid [[vertex_id]],
+	const device Attributes* attributes [[buffer(0)]],
+	constant float& U0 [[buffer(1)]]) {
+	Varyings varyings = {};
+	varyings.Position = attributes[vid].M0;
+	varyings.M0 = attributes[vid].M1;
+	varyings.M1 = attributes[vid].M2;
+	return varyings;
+}`,
 		},
 		{
 			Name: "FragmentFunc",
@@ -1031,6 +1163,40 @@ vec4 F0(in vec4 l0, in float l1, in vec2 l2) {
 void main(void) {
 	gl_FragColor = F0(gl_FragCoord, V0, V1);
 }`,
+			Metal: msl.Prelude + `
+
+struct Attributes {
+	float4 M0;
+	float M1;
+	float2 M2;
+};
+
+struct Varyings {
+	float4 Position [[position]];
+	float M0;
+	float2 M1;
+};
+
+vertex Varyings Vertex(
+	uint vid [[vertex_id]],
+	const device Attributes* attributes [[buffer(0)]],
+	constant float& U0 [[buffer(1)]]) {
+	Varyings varyings = {};
+	varyings.Position = attributes[vid].M0;
+	varyings.M0 = attributes[vid].M1;
+	varyings.M1 = attributes[vid].M2;
+	return varyings;
+}
+
+fragment float4 Fragment(
+	Varyings varyings [[stage_in]],
+	constant float& U0 [[buffer(1)]]) {
+	float l0 = float(0);
+	float2 l1 = float2(0);
+	l0 = varyings.Position;
+	l1 = varyings.M0;
+	return varyings.M1;
+}`,
 		},
 		{
 			Name: "VertexFuncWithTexture",
@@ -1112,6 +1278,37 @@ fragment float4 Fragment(
 	texture2d<float> T0 [[texture(0)]]) {
 	T0;
 }`,
+		},
+		{
+			Name: "AttributeStruct",
+			Program: shaderir.Program{
+				Attributes: []shaderir.Type{
+					{Main: shaderir.Struct,
+						Sub: []shaderir.Type{
+							{Main: shaderir.Float},
+						},
+					},
+				},
+			},
+			GlslVS: glslVertexPrelude + `
+struct S0 {
+	float M0;
+};
+
+attribute S0 A0;`,
+			GlslFS: glslFragmentPrelude + `
+struct S0 {
+	float M0;
+};`,
+			Metal: msl.Prelude + `
+
+struct S0 {
+	float M0;
+};
+
+struct Attributes {
+	S0 M0;
+};`,
 		},
 	}
 	for _, tc := range tests {
