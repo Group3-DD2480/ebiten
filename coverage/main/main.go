@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -105,7 +106,20 @@ func main() {
 			}
 			coverages[filePath][function] = float64(len(fileLines)) /
 				float64(numberOfCases[filePath][function])
+			fmt.Println("-----------------------------------------------")
 			fmt.Println(filePath, function, coverages[filePath][function])
+			fmt.Println(numberOfCases[filePath][function], " total branches.")
+			fmt.Println()
+			lines := make([]string, 0, len(fileLines))
+			for k := range fileLines {
+				lines = append(lines, k)
+			}
+			sort.Strings(lines)
+			for _, line := range lines {
+				fmt.Println(line)
+			}
+			fmt.Println()
+			fmt.Println()
 		}
 	}
 	os.RemoveAll("tmp")
@@ -183,7 +197,7 @@ func updateFunction(file *ast.File, filePath string, functionName string) (*ast.
 							Args: []ast.Expr{
 								&ast.BasicLit{Kind: token.STRING, Value: "\"" +
 									coverageId(filePath, functionName) + "\""},
-								&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, "enter") + "\\n\""},
+								&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " enter") + "\\n\""},
 							},
 						}}}, newRange.Body.List...)
 						c.Replace(&ast.BlockStmt{
@@ -193,7 +207,7 @@ func updateFunction(file *ast.File, filePath string, functionName string) (*ast.
 									Args: []ast.Expr{
 										&ast.BasicLit{Kind: token.STRING, Value: "\"" +
 											coverageId(filePath, functionName) + "\""},
-										&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, "exit") + "\\n\""},
+										&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " exit") + "\\n\""},
 									},
 								}}},
 						})
@@ -206,7 +220,7 @@ func updateFunction(file *ast.File, filePath string, functionName string) (*ast.
 							Args: []ast.Expr{
 								&ast.BasicLit{Kind: token.STRING, Value: "\"" +
 									coverageId(filePath, functionName) + "\""},
-								&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, "enter") + "\\n\""},
+								&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " enter") + "\\n\""},
 							},
 						}}}, newFor.Body.List...)
 						c.Replace(&ast.BlockStmt{
@@ -216,7 +230,7 @@ func updateFunction(file *ast.File, filePath string, functionName string) (*ast.
 									Args: []ast.Expr{
 										&ast.BasicLit{Kind: token.STRING, Value: "\"" +
 											coverageId(filePath, functionName) + "\""},
-										&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, "exit") + "\\n\""},
+										&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " exit") + "\\n\""},
 									},
 								}}},
 						})
@@ -254,7 +268,7 @@ func switchBody(body []ast.Stmt, branchId int, filePath, functionName string) []
 			Args: []ast.Expr{
 				&ast.BasicLit{Kind: token.STRING, Value: "\"" +
 					coverageId(filePath, functionName) + "\""},
-				&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, "default") + "\\n\""},
+				&ast.BasicLit{Kind: token.STRING, Value: "\"" + fmt.Sprint(branchId, " default") + "\\n\""},
 			},
 		}}}}
 		newBody = append(newBody, &newCase)
