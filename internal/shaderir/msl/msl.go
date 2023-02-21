@@ -92,9 +92,7 @@ func Compile(p *shaderir.Program, vertex, fragment string) (shader string) {
 			lines = append(lines, c.function(p, &f, true)...)
 		}
 		for _, f := range p.Funcs {
-			if len(lines) > 0 && lines[len(lines)-1] != "" {
-				lines = append(lines, "")
-			}
+			lines = append(lines, "")
 			lines = append(lines, c.function(p, &f, false)...)
 		}
 	}
