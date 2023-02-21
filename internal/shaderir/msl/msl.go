@@ -103,14 +103,8 @@ func Compile(p *shaderir.Program, vertex, fragment string) (shader string) {
 			fmt.Sprintf("vertex Varyings %s(", vertex),
 			"\tuint vid [[vertex_id]],",
 			"\tconst device Attributes* attributes [[buffer(0)]]")
-		for i, u := range p.Uniforms {
-			lines[len(lines)-1] += ","
-			lines = append(lines, fmt.Sprintf("\tconstant %s [[buffer(%d)]]", c.varDecl(p, &u, fmt.Sprintf("U%d", i), true), i+1))
-		}
-		for i := 0; i < p.TextureCount; i++ {
-			lines[len(lines)-1] += ","
-			lines = append(lines, fmt.Sprintf("\ttexture2d<float> T%[1]d [[texture(%[1]d)]]", i))
-		}
+		lines = c.uniforms(lines, p)
+		lines = c.textures(lines, p)
 		lines[len(lines)-1] += ") {"
 		lines = append(lines, fmt.Sprintf("\tVaryings %s = {};", vertexOut))
 		lines = append(lines, c.block(p, p.VertexFunc.Block, p.VertexFunc.Block, 0)...)
@@ -125,14 +119,8 @@ func Compile(p *shaderir.Program, vertex, fragment string) (shader string) {
 		lines = append(lines,
 			fmt.Sprintf("fragment float4 %s(", fragment),
 			"\tVaryings varyings [[stage_in]]")
-		for i, u := range p.Uniforms {
-			lines[len(lines)-1] += ","
-			lines = append(lines, fmt.Sprintf("\tconstant %s [[buffer(%d)]]", c.varDecl(p, &u, fmt.Sprintf("U%d", i), true), i+1))
-		}
-		for i := 0; i < p.TextureCount; i++ {
-			lines[len(lines)-1] += ","
-			lines = append(lines, fmt.Sprintf("\ttexture2d<float> T%[1]d [[texture(%[1]d)]]", i))
-		}
+		lines = c.uniforms(lines, p)
+		lines = c.textures(lines, p)
 		lines[len(lines)-1] += ") {"
 		lines = append(lines, c.block(p, p.FragmentFunc.Block, p.FragmentFunc.Block, 0)...)
 		lines = append(lines, "}")
@@ -160,6 +148,22 @@ func Compile(p *shaderir.Program, vertex, fragment string) (shader string) {
 	ls = strings.TrimSpace(ls) + "\n"
 
 	return ls
+}
+
+func (c *compileContext) uniforms(lines []string, p *shaderir.Program) []string {
+	for i, u := range p.Uniforms {
+		lines[len(lines)-1] += ","
+		lines = append(lines, fmt.Sprintf("\tconstant %s [[buffer(%d)]]", c.varDecl(p, &u, fmt.Sprintf("U%d", i), true), i+1))
+	}
+	return lines
+}
+
+func (c *compileContext) textures(lines []string, p *shaderir.Program) []string {
+	for i := 0; i < p.TextureCount; i++ {
+		lines[len(lines)-1] += ","
+		lines = append(lines, fmt.Sprintf("\ttexture2d<float> T%[1]d [[texture(%[1]d)]]", i))
+	}
+	return lines
 }
 
 func (c *compileContext) typ(p *shaderir.Program, t *shaderir.Type) string {
