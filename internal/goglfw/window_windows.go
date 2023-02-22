@@ -399,16 +399,8 @@ func (w *Window) SetSizeLimits(minwidth, minheight, maxwidth, maxheight int) err
 		return NotInitialized
 	}
 
-	if minwidth != DontCare && minheight != DontCare {
-		if minwidth < 0 || minheight < 0 {
-			return fmt.Errorf("goglfw: invalid window minimum size %dx%d: %w", minwidth, minheight, InvalidValue)
-		}
-	}
-
-	if maxwidth != DontCare && maxheight != DontCare {
-		if maxwidth < 0 || maxheight < 0 || maxwidth < minwidth || maxheight < minheight {
-			return fmt.Errorf("goglfw: invalid window maximum size %dx%d: %w", maxwidth, maxheight, InvalidValue)
-		}
+	if err := checkSizes(minwidth, minheight, maxwidth, maxheight); err != nil {
+		return err
 	}
 
 	w.minwidth = minwidth
@@ -426,6 +418,22 @@ func (w *Window) SetSizeLimits(minwidth, minheight, maxwidth, maxheight int) err
 
 	if err := w.updateWindowStyles(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func checkSizes(minwidth, minheight, maxwidth, maxheight int) error {
+	if minwidth != DontCare && minheight != DontCare {
+		if minwidth < 0 || minheight < 0 {
+			return fmt.Errorf("goglfw: invalid window minimum size %dx%d: %w", minwidth, minheight, InvalidValue)
+		}
+	}
+
+	if maxwidth != DontCare && maxheight != DontCare {
+		if maxwidth < 0 || maxheight < 0 || maxwidth < minwidth || maxheight < minheight {
+			return fmt.Errorf("goglfw: invalid window maximum size %dx%d: %w", maxwidth, maxheight, InvalidValue)
+		}
 	}
 
 	return nil
