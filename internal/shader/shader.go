@@ -475,6 +475,78 @@ func (cs *compileState) functionReturnTypes(block *block, expr ast.Expr) ([]shad
 	return nil, false
 }
 
+func (s *compileState) parseSingleVariable(init ast.Expr, t *shaderir.Type, block *block, fname string, vs *ast.ValueSpec) ([]shaderir.Expr, []shaderir.Stmt, bool) {
+	// init := vs.Values[i]
+
+	es, rts, ss, ok := s.parseExpr(block, fname, init, true)
+	if !ok {
+		return nil, nil, false
+	}
+
+	if t.Main == shaderir.None {
+		ts, ok := s.functionReturnTypes(block, init)
+		if !ok {
+			ts = rts
+		}
+		if len(ts) > 1 {
+			s.addError(vs.Pos(), fmt.Sprintf("the numbers of lhs and rhs don't match"))
+		}
+		*t = ts[0]
+	}
+
+	if es[0].Type == shaderir.NumberExpr {
+		switch t.Main {
+		case shaderir.Int:
+			es[0].ConstType = shaderir.ConstTypeInt
+		case shaderir.Float:
+			es[0].ConstType = shaderir.ConstTypeFloat
+		}
+	}
+
+	for i, rt := range rts {
+		if !canAssign(t, &rt, es[i].Const) {
+			s.addError(vs.Pos(), fmt.Sprintf("cannot use type %s as type %s in variable declaration", rt.String(), t.String()))
+		}
+	}
+
+	return es, ss, true
+}
+
+func (s *compileState) parseMultipleVariable(inittypes *[]shaderir.Type, initexprs *[]shaderir.Expr, stmts *[]shaderir.Stmt, i int, t *shaderir.Type, block *block, fname string, vs *ast.ValueSpec) ([]shaderir.Expr, bool) {
+	if i == 0 {
+		init := vs.Values[0]
+
+		var ss []shaderir.Stmt
+		var ok bool
+		*initexprs, *inittypes, ss, ok = s.parseExpr(block, fname, init, true)
+		if !ok {
+			return nil, false
+		}
+		*stmts = append(*stmts, ss...)
+
+		if t.Main == shaderir.None {
+			ts, ok := s.functionReturnTypes(block, init)
+			if ok {
+				*inittypes = ts
+			}
+			if len(ts) != len(vs.Names) {
+				s.addError(vs.Pos(), fmt.Sprintf("the numbers of lhs and rhs don't match"))
+				return *initexprs, true
+			}
+		}
+	}
+
+	if t.Main == shaderir.None && len(*inittypes) > 0 {
+		*t = (*inittypes)[i]
+	}
+
+	if !canAssign(t, &(*inittypes)[i], (*initexprs)[i].Const) {
+		s.addError(vs.Pos(), fmt.Sprintf("cannot use type %s as type %s in variable declaration", (*inittypes)[i].String(), t.String()))
+	}
+
+	return *initexprs, true
+}
+
 func (s *compileState) parseVariable(block *block, fname string, vs *ast.ValueSpec) ([]variable, []shaderir.Expr, []shaderir.Stmt, bool) {
 	if len(vs.Names) != len(vs.Values) && len(vs.Values) != 1 && len(vs.Values) != 0 {
 		s.addError(vs.Pos(), fmt.Sprintf("the numbers of lhs and rhs don't match"))
@@ -505,80 +577,20 @@ func (s *compileState) parseVariable(block *block, fname string, vs *ast.ValueSp
 		switch {
 		case len(vs.Values) == 0:
 			// No initialization
-
 		case len(vs.Names) == len(vs.Values):
 			// Single-value context
-
-			init := vs.Values[i]
-
-			es, rts, ss, ok := s.parseExpr(block, fname, init, true)
+			es, ss, ok := s.parseSingleVariable(vs.Values[i], &t, block, fname, vs)
 			if !ok {
 				return nil, nil, nil, false
 			}
-
-			if t.Main == shaderir.None {
-				ts, ok := s.functionReturnTypes(block, init)
-				if !ok {
-					ts = rts
-				}
-				if len(ts) > 1 {
-					s.addError(vs.Pos(), fmt.Sprintf("the numbers of lhs and rhs don't match"))
-				}
-				t = ts[0]
-			}
-
-			if es[0].Type == shaderir.NumberExpr {
-				switch t.Main {
-				case shaderir.Int:
-					es[0].ConstType = shaderir.ConstTypeInt
-				case shaderir.Float:
-					es[0].ConstType = shaderir.ConstTypeFloat
-				}
-			}
-
-			for i, rt := range rts {
-				if !canAssign(&t, &rt, es[i].Const) {
-					s.addError(vs.Pos(), fmt.Sprintf("cannot use type %s as type %s in variable declaration", rt.String(), t.String()))
-				}
-			}
-
 			inits = append(inits, es...)
 			stmts = append(stmts, ss...)
-
 		default:
 			// Multiple-value context
-
-			if i == 0 {
-				init := vs.Values[0]
-
-				var ss []shaderir.Stmt
-				var ok bool
-				initexprs, inittypes, ss, ok = s.parseExpr(block, fname, init, true)
-				if !ok {
-					return nil, nil, nil, false
-				}
-				stmts = append(stmts, ss...)
-
-				if t.Main == shaderir.None {
-					ts, ok := s.functionReturnTypes(block, init)
-					if ok {
-						inittypes = ts
-					}
-					if len(ts) != len(vs.Names) {
-						s.addError(vs.Pos(), fmt.Sprintf("the numbers of lhs and rhs don't match"))
-						continue
-					}
-				}
+			initexprs, ok := s.parseMultipleVariable(&inittypes, &initexprs, &stmts, i, &t, block, fname, vs)
+			if !ok {
+				return nil, nil, nil, false
 			}
-
-			if t.Main == shaderir.None && len(inittypes) > 0 {
-				t = inittypes[i]
-			}
-
-			if !canAssign(&t, &inittypes[i], initexprs[i].Const) {
-				s.addError(vs.Pos(), fmt.Sprintf("cannot use type %s as type %s in variable declaration", inittypes[i].String(), t.String()))
-			}
-
 			// Add the same initexprs for each variable.
 			inits = append(inits, initexprs...)
 		}
