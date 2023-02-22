@@ -7,8 +7,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/internal/goglfw"
 )
 
-func TestWindow_SetSizeLimits(t *testing.T) {
-
+func TestWindow_SetSizeLimits1(t *testing.T) {
 	// Test case 1:
 	window := goglfw.Window{}
 	minwidth := 2
@@ -19,49 +18,59 @@ func TestWindow_SetSizeLimits(t *testing.T) {
 	if err != goglfw.NotInitialized {
 		t.Error()
 	}
+}
 
-	goglfw.Init()
+func TestWindow_SetSizeLimits2(t *testing.T) {
 	// Test case 2:
-	window = goglfw.Window{}
-	minwidth = 0
-	minheight = -2
-	maxwidth = 1
-	maxheight = 1
-	err = window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
+	goglfw.Init()
+	window := goglfw.Window{}
+	minwidth := 0
+	minheight := -2
+	maxwidth := 1
+	maxheight := 1
+	err := window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
 	if fmt.Sprint(err) != fmt.Sprint("goglfw: invalid window minimum size 0x-2: ", goglfw.InvalidValue) {
 		t.Error()
 	}
+}
 
+func TestWindow_SetSizeLimits3(t *testing.T) {
 	// Test case 3:
-	window = goglfw.Window{}
-	minwidth = 1
-	minheight = 1
-	maxwidth = -2
-	maxheight = -2
-	err = window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
+	goglfw.Init()
+	window := goglfw.Window{}
+	minwidth := 1
+	minheight := 1
+	maxwidth := -2
+	maxheight := -2
+	err := window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
 	if fmt.Sprint(err) != fmt.Sprint("goglfw: invalid window maximum size -2x-2: ", goglfw.InvalidValue) {
 		t.Error()
 	}
+}
 
-	// Test case 4: resizable set to false
-	window = goglfw.Window{}
-	//(window).resizable = false
-	minwidth = -1
-	minheight = -1
-	maxwidth = -1
-	maxheight = -1
-	err = window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
+func TestWindow_SetSizeLimits4(t *testing.T) {
+	// Test case 4:
+	goglfw.Init()
+	window := goglfw.Window{}
+	minwidth := -1
+	minheight := -1
+	maxwidth := -1
+	maxheight := -1
+	err := window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
 	if err != nil {
 		t.Error()
 	}
+}
 
+func TestWindow_SetSizeLimits5(t *testing.T) {
 	// Test case 5:
-	window = goglfw.Window{}
-	minwidth = 2
-	minheight = 2
-	maxwidth = 3
-	maxheight = 3
-	err = window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
+	goglfw.Init()
+	window := goglfw.Window{}
+	minwidth := 2
+	minheight := 2
+	maxwidth := 3
+	maxheight := 3
+	err := window.SetSizeLimits(minwidth, minheight, maxwidth, maxheight)
 	if err != nil {
 		t.Error()
 	}
