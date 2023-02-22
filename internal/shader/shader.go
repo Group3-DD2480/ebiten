@@ -548,7 +548,6 @@ func (s *compileState) parseVariable(block *block, fname string, vs *ast.ValueSp
 			// No initialization
 		case len(vs.Names) == len(vs.Values):
 			// Single-value context
-			inits = append(inits)
 			es, ss, ok := s.parseSingleVariable(vs.Values[i], &t, block, fname, vs)
 			if !ok {
 				return nil, nil, nil, false
