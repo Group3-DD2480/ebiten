@@ -482,16 +482,13 @@ func (s *compileState) parseSingleVariable(init ast.Expr, t *shaderir.Type, bloc
 	return es, ss, true
 }
 
-func (s *compileState) parseMultipleVariable(stmts *[]shaderir.Stmt, i int, t *shaderir.Type, block *block, fname string, vs *ast.ValueSpec) ([]shaderir.Expr, bool) {
-	// These variables are used only in multiple-value context.
-	var inittypes []shaderir.Type
-	var initexprs []shaderir.Expr
+func (s *compileState) parseMultipleVariable(inittypes *[]shaderir.Type, initexprs *[]shaderir.Expr, stmts *[]shaderir.Stmt, i int, t *shaderir.Type, block *block, fname string, vs *ast.ValueSpec) ([]shaderir.Expr, bool) {
 	if i == 0 {
 		init := vs.Values[0]
 
 		var ss []shaderir.Stmt
 		var ok bool
-		initexprs, inittypes, ss, ok = s.parseExpr(block, fname, init, true)
+		*initexprs, *inittypes, ss, ok = s.parseExpr(block, fname, init, true)
 		if !ok {
 			return nil, false
 		}
@@ -500,24 +497,24 @@ func (s *compileState) parseMultipleVariable(stmts *[]shaderir.Stmt, i int, t *s
 		if t.Main == shaderir.None {
 			ts, ok := s.functionReturnTypes(block, init)
 			if ok {
-				inittypes = ts
+				*inittypes = ts
 			}
 			if len(ts) != len(vs.Names) {
 				s.addError(vs.Pos(), fmt.Sprintf("the numbers of lhs and rhs don't match"))
-				return initexprs, true
+				return *initexprs, true
 			}
 		}
 	}
 
-	if t.Main == shaderir.None && len(inittypes) > 0 {
-		*t = inittypes[i]
+	if t.Main == shaderir.None && len(*inittypes) > 0 {
+		*t = (*inittypes)[i]
 	}
 
-	if len(inittypes) > 0 && len(initexprs) > 0 && !canAssign(t, &inittypes[i], initexprs[i].Const) {
-		s.addError(vs.Pos(), fmt.Sprintf("cannot use type %s as type %s in variable declaration", inittypes[i].String(), t.String()))
+	if !canAssign(t, &(*inittypes)[i], (*initexprs)[i].Const) {
+		s.addError(vs.Pos(), fmt.Sprintf("cannot use type %s as type %s in variable declaration", (*inittypes)[i].String(), t.String()))
 	}
 
-	return initexprs, true
+	return *initexprs, true
 }
 
 func (s *compileState) parseVariable(block *block, fname string, vs *ast.ValueSpec) ([]variable, []shaderir.Expr, []shaderir.Stmt, bool) {
@@ -541,6 +538,10 @@ func (s *compileState) parseVariable(block *block, fname string, vs *ast.ValueSp
 		stmts []shaderir.Stmt
 	)
 
+	// These variables are used only in multiple-value context.
+	var inittypes []shaderir.Type
+	var initexprs []shaderir.Expr
+
 	for i, n := range vs.Names {
 		t := declt
 		switch {
@@ -556,11 +557,10 @@ func (s *compileState) parseVariable(block *block, fname string, vs *ast.ValueSp
 			stmts = append(stmts, ss...)
 		default:
 			// Multiple-value context
-			initexprs, ok := s.parseMultipleVariable(&stmts, i, &t, block, fname, vs)
+			initexprs, ok := s.parseMultipleVariable(&inittypes, &initexprs, &stmts, i, &t, block, fname, vs)
 			if !ok {
 				return nil, nil, nil, false
 			}
-
 			// Add the same initexprs for each variable.
 			inits = append(inits, initexprs...)
 		}
