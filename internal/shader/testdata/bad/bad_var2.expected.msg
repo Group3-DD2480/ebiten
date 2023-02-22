@@ -1,0 +1,1 @@
+3:1: function Foo must have a return statement but not

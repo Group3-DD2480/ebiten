@@ -219,7 +219,7 @@ func TestCompileThrowsErrors(t *testing.T) {
 		t.Skip("file open might not be implemented in this environment")
 	}
 
-    directory := "badtestdata"
+	directory := "testdata/bad"
 
 	files, err := os.ReadDir(directory)
 	if err != nil {
@@ -227,9 +227,9 @@ func TestCompileThrowsErrors(t *testing.T) {
 	}
 
 	type testcase struct {
-		Name  string
-		Src   []byte
-        Msg   string
+		Name string
+		Src  []byte
+		Msg  string
 	}
 
 	fnames := map[string]struct{}{}
@@ -264,7 +264,7 @@ func TestCompileThrowsErrors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-            tc.Msg = string(msg[:])
+			tc.Msg = string(msg[:])
 		}
 
 		tests = append(tests, tc)
@@ -283,12 +283,12 @@ func TestCompileThrowsErrors(t *testing.T) {
 				t.Error("Error was nil when not expected")
 				return
 			}
-            got := strings.Join(strings.Fields(err.Error()), " ")
-            wants := strings.Join(strings.Fields(tc.Msg), " ")
-            if !strings.Contains(got, wants) {
-                t.Errorf("Expected \"%s\" to be in \"%s\"", wants, got)
-                return
-            }
+			got := strings.Join(strings.Fields(err.Error()), " ")
+			wants := strings.Join(strings.Fields(tc.Msg), " ")
+			if !strings.Contains(got, wants) {
+				t.Errorf("Expected \"%s\" to be in \"%s\"", wants, got)
+				return
+			}
 		})
 	}
 }
