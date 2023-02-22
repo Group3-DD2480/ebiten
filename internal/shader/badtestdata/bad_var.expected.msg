@@ -1,1 +1,1 @@
-vec4
+4:6: the numbers of lhs and rhs don't match
