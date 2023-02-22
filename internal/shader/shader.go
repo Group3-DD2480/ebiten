@@ -306,85 +306,9 @@ func (cs *compileState) parseDecl(b *block, fname string, d ast.Decl) ([]shaderi
 
 	switch d := d.(type) {
 	case *ast.GenDecl:
-		switch d.Tok {
-		case token.TYPE:
-			// TODO: Parse other types
-			for _, s := range d.Specs {
-				s := s.(*ast.TypeSpec)
-				t, ok := cs.parseType(b, fname, s.Type)
-				if !ok {
-					return nil, false
-				}
-				n := s.Name.Name
-				for _, t := range b.types {
-					if t.name == n {
-						cs.addError(s.Pos(), fmt.Sprintf("%s redeclared in this block", n))
-						return nil, false
-					}
-				}
-				b.types = append(b.types, typ{
-					name: n,
-					ir:   t,
-				})
-			}
-		case token.CONST:
-			for _, s := range d.Specs {
-				s := s.(*ast.ValueSpec)
-				cs, ok := cs.parseConstant(b, fname, s)
-				if !ok {
-					return nil, false
-				}
-				b.consts = append(b.consts, cs...)
-			}
-		case token.VAR:
-			for _, s := range d.Specs {
-				s := s.(*ast.ValueSpec)
-				vs, inits, ss, ok := cs.parseVariable(b, fname, s)
-				if !ok {
-					return nil, false
-				}
-
-				stmts = append(stmts, ss...)
-				if b == &cs.global {
-					// TODO: Should rhs be ignored?
-					for i, v := range vs {
-						if !strings.HasPrefix(v.name, "__") {
-							if v.name[0] < 'A' || 'Z' < v.name[0] {
-								cs.addError(s.Names[i].Pos(), fmt.Sprintf("global variables must be exposed: %s", v.name))
-							}
-						}
-						cs.ir.UniformNames = append(cs.ir.UniformNames, v.name)
-						cs.ir.Uniforms = append(cs.ir.Uniforms, v.typ)
-					}
-					continue
-				}
-
-				// base must be obtained before adding the variables.
-				base := b.totalLocalVariableCount()
-				for _, v := range vs {
-					b.addNamedLocalVariable(v.name, v.typ, d.Pos())
-				}
-
-				if len(inits) > 0 {
-					for i := range vs {
-						stmts = append(stmts, shaderir.Stmt{
-							Type: shaderir.Assign,
-							Exprs: []shaderir.Expr{
-								{
-									Type:  shaderir.LocalVariable,
-									Index: base + i,
-								},
-								inits[i],
-							},
-						})
-					}
-				}
-			}
-		case token.IMPORT:
-			cs.addError(d.Pos(), "import is forbidden")
-		default:
-			cs.addError(d.Pos(), "unexpected token")
-		}
+        if ok := cs.parseDeclGenDecl(b, fname, *d, &stmts); !ok {
+            return nil, false
+        }
 	case *ast.FuncDecl:
 		f, ok := cs.parseFunc(b, d)
 		if !ok {
@@ -416,6 +340,112 @@ func (cs *compileState) parseDecl(b *block, fname string, d ast.Decl) ([]shaderi
 	}
 
 	return stmts, true
+}
+
+func (cs *compileState) parseDeclGenDecl(b *block, fname string, d ast.GenDecl, stmts * []shaderir.Stmt) bool {
+	switch d.Tok {
+	case token.TYPE:
+		return cs.parseDeclType(b, fname, d)
+	case token.CONST:
+		return cs.parseDeclConst(b, fname, d)
+	case token.VAR:
+		return cs.parseDeclVar(b, fname, d, stmts)
+	case token.IMPORT:
+		return cs.parseDeclImport(d)
+	default:
+		return cs.parseDeclDefault(d)
+	}
+}
+
+func (cs *compileState) parseDeclType(b *block, fname string, d ast.GenDecl) bool {
+	for _, s := range d.Specs {
+		s := s.(*ast.TypeSpec)
+		t, ok := cs.parseType(b, fname, s.Type)
+		if !ok {
+			return false
+		}
+		n := s.Name.Name
+		for _, t := range b.types {
+			if t.name == n {
+				cs.addError(s.Pos(), fmt.Sprintf("%s redeclared in this block", n))
+				return false
+			}
+		}
+		b.types = append(b.types, typ{
+			name: n,
+			ir:   t,
+		})
+	}
+	return true
+}
+
+func (cs *compileState) parseDeclConst(b *block, fname string, d ast.GenDecl) bool {
+	for _, s := range d.Specs {
+		s := s.(*ast.ValueSpec)
+		cs, ok := cs.parseConstant(b, fname, s)
+		if !ok {
+			return false
+		}
+		b.consts = append(b.consts, cs...)
+	}
+	return true
+}
+
+func (cs *compileState) parseDeclVar(b *block, fname string, d ast.GenDecl, stmts * []shaderir.Stmt) bool {
+	for _, s := range d.Specs {
+		s := s.(*ast.ValueSpec)
+		vs, inits, ss, ok := cs.parseVariable(b, fname, s)
+		if !ok {
+			return false
+		}
+
+		*stmts = append(*stmts, ss...)
+		if b == &cs.global {
+			// TODO: Should rhs be ignored?
+			for i, v := range vs {
+				if !strings.HasPrefix(v.name, "__") {
+					if v.name[0] < 'A' || 'Z' < v.name[0] {
+						cs.addError(s.Names[i].Pos(), fmt.Sprintf("global variables must be exposed: %s", v.name))
+					}
+				}
+				cs.ir.UniformNames = append(cs.ir.UniformNames, v.name)
+				cs.ir.Uniforms = append(cs.ir.Uniforms, v.typ)
+			}
+			continue
+		}
+
+		// base must be obtained before adding the variables.
+		base := b.totalLocalVariableCount()
+		for _, v := range vs {
+			b.addNamedLocalVariable(v.name, v.typ, d.Pos())
+		}
+
+		if len(inits) > 0 {
+			for i := range vs {
+				*stmts = append(*stmts, shaderir.Stmt{
+					Type: shaderir.Assign,
+					Exprs: []shaderir.Expr{
+						{
+							Type:  shaderir.LocalVariable,
+							Index: base + i,
+						},
+						inits[i],
+					},
+				})
+			}
+		}
+	}
+	return true
+}
+
+func (cs *compileState) parseDeclImport(d ast.GenDecl) bool {
+	cs.addError(d.Pos(), "import is forbidden")
+	return true
+}
+
+func (cs *compileState) parseDeclDefault(d ast.GenDecl) bool {
+	cs.addError(d.Pos(), "unexpected token")
+	return true
 }
 
 // functionReturnTypes returns the original returning value types, if the given expression is call.
