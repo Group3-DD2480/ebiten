@@ -106,23 +106,25 @@ func (cs *compileState) parseType(block *block, fname string, expr ast.Expr) (sh
 	}
 }
 
-func canBeFloatImplicitly(expr shaderir.Expr, t shaderir.Type) bool {
+func canBeFloatImplicitly(expr shaderir.Expr, t shaderir.Type) (shaderir.Expr, bool) {
 	// TODO: For integers, should only constants be allowed?
 	if t.Main == shaderir.Int {
-		return true
+		return expr, true
 	}
 	if t.Main == shaderir.Float {
-		return true
+		return expr, true
 	}
 	if expr.Const != nil {
 		if expr.Const.Kind() == gconstant.Int {
-			return true
+			expr.Const = gconstant.ToFloat(expr.Const)
+			return expr, true
 		}
 		if expr.Const.Kind() == gconstant.Float {
-			return true
+			expr.Const = gconstant.ToFloat(expr.Const)
+			return expr, true
 		}
 	}
-	return false
+	return expr, false
 }
 
 func checkArgsForBoolBuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) error {
@@ -153,7 +155,7 @@ func checkArgsForIntBuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) err
 	if argts[0].Main == shaderir.Int || argts[0].Main == shaderir.Float {
 		return nil
 	}
-	if args[0].Const != nil && canTruncateToInteger(args[0].Const) {
+	if args[0].Const != nil && canTruncateToInteger(&args[0].Const) {
 		return nil
 	}
 	return fmt.Errorf("invalid arguments for int: (%s)", argts[0].String())
@@ -167,7 +169,8 @@ func checkArgsForFloatBuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) e
 	if len(args) != 1 {
 		return fmt.Errorf("number of float's arguments must be 1 but %d", len(args))
 	}
-	if canBeFloatImplicitly(args[0], argts[0]) {
+	if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok {
+		args[0] = arg
 		return nil
 	}
 	return fmt.Errorf("invalid arguments for float: (%s)", argts[0].String())
@@ -180,14 +183,18 @@ func checkArgsForVec2BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 
 	switch len(args) {
 	case 1:
-		if canBeFloatImplicitly(args[0], argts[0]) {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok {
+			args[0] = arg
 			return nil
 		}
 		if argts[0].IsVector() && argts[0].VectorElementCount() == 2 {
 			return nil
 		}
 	case 2:
-		if canBeFloatImplicitly(args[0], argts[0]) && canBeFloatImplicitly(args[1], argts[1]) {
+		arg0, ok0 := canBeFloatImplicitly(args[0], argts[0])
+		arg1, ok1 := canBeFloatImplicitly(args[1], argts[1])
+		if ok0 && ok1 {
+			args[0], args[1] = arg0, arg1
 			return nil
 		}
 	default:
@@ -208,21 +215,28 @@ func checkArgsForVec3BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 
 	switch len(args) {
 	case 1:
-		if canBeFloatImplicitly(args[0], argts[0]) {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok {
+			args[0] = arg
 			return nil
 		}
 		if argts[0].IsVector() && argts[0].VectorElementCount() == 3 {
 			return nil
 		}
 	case 2:
-		if canBeFloatImplicitly(args[0], argts[0]) && argts[1].IsVector() && argts[1].VectorElementCount() == 2 {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok && argts[1].IsVector() && argts[1].VectorElementCount() == 2 {
+			args[0] = arg
 			return nil
 		}
-		if argts[0].IsVector() && argts[0].VectorElementCount() == 2 && canBeFloatImplicitly(args[1], argts[1]) {
+		if arg, ok := canBeFloatImplicitly(args[1], argts[1]); ok && argts[0].IsVector() && argts[0].VectorElementCount() == 2 {
+			args[1] = arg
 			return nil
 		}
 	case 3:
-		if canBeFloatImplicitly(args[0], argts[0]) && canBeFloatImplicitly(args[1], argts[1]) && canBeFloatImplicitly(args[2], argts[2]) {
+		arg0, ok0 := canBeFloatImplicitly(args[0], argts[0])
+		arg1, ok1 := canBeFloatImplicitly(args[1], argts[1])
+		arg2, ok2 := canBeFloatImplicitly(args[2], argts[2])
+		if ok0 && ok1 && ok2 {
+			args[0], args[1], args[2] = arg0, arg1, arg2
 			return nil
 		}
 	default:
@@ -243,34 +257,48 @@ func checkArgsForVec4BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 
 	switch len(args) {
 	case 1:
-		if canBeFloatImplicitly(args[0], argts[0]) {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok {
+			args[0] = arg
 			return nil
 		}
 		if argts[0].IsVector() && argts[0].VectorElementCount() == 4 {
 			return nil
 		}
 	case 2:
-		if canBeFloatImplicitly(args[0], argts[0]) && argts[1].IsVector() && argts[1].VectorElementCount() == 3 {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok && argts[1].IsVector() && argts[1].VectorElementCount() == 3 {
+			args[0] = arg
 			return nil
 		}
 		if argts[0].IsVector() && argts[0].VectorElementCount() == 2 && argts[1].IsVector() && argts[1].VectorElementCount() == 2 {
 			return nil
 		}
-		if argts[0].IsVector() && argts[0].VectorElementCount() == 3 && canBeFloatImplicitly(args[1], argts[1]) {
+		if arg, ok := canBeFloatImplicitly(args[1], argts[1]); ok && argts[0].IsVector() && argts[0].VectorElementCount() == 3 {
+			args[1] = arg
 			return nil
 		}
 	case 3:
-		if canBeFloatImplicitly(args[0], argts[0]) && canBeFloatImplicitly(args[1], argts[1]) && argts[2].IsVector() && argts[2].VectorElementCount() == 2 {
+		arg0, ok0 := canBeFloatImplicitly(args[0], argts[0])
+		arg1, ok1 := canBeFloatImplicitly(args[1], argts[1])
+		arg2, ok2 := canBeFloatImplicitly(args[2], argts[2])
+		if ok0 && ok1 && argts[2].IsVector() && argts[2].VectorElementCount() == 2 {
+			args[0], args[1] = arg0, arg1
 			return nil
 		}
-		if canBeFloatImplicitly(args[0], argts[0]) && argts[1].IsVector() && argts[1].VectorElementCount() == 2 && canBeFloatImplicitly(args[2], argts[2]) {
+		if ok0 && argts[1].IsVector() && argts[1].VectorElementCount() == 2 && ok2 {
+			args[0], args[2] = arg0, arg2
 			return nil
 		}
-		if argts[0].IsVector() && argts[0].VectorElementCount() == 2 && canBeFloatImplicitly(args[1], argts[1]) && canBeFloatImplicitly(args[2], argts[2]) {
+		if argts[0].IsVector() && argts[0].VectorElementCount() == 2 && ok1 && ok2 {
+			args[1], args[2] = arg1, arg2
 			return nil
 		}
 	case 4:
-		if canBeFloatImplicitly(args[0], argts[0]) && canBeFloatImplicitly(args[1], argts[1]) && canBeFloatImplicitly(args[2], argts[2]) && canBeFloatImplicitly(args[3], argts[3]) {
+		arg0, ok0 := canBeFloatImplicitly(args[0], argts[0])
+		arg1, ok1 := canBeFloatImplicitly(args[1], argts[1])
+		arg2, ok2 := canBeFloatImplicitly(args[2], argts[2])
+		arg3, ok3 := canBeFloatImplicitly(args[3], argts[3])
+		if ok0 && ok1 && ok2 && ok3 {
+			args[0], args[1], args[2], args[3] = arg0, arg1, arg2, arg3
 			return nil
 		}
 	default:
@@ -291,7 +319,8 @@ func checkArgsForMat2BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 
 	switch len(args) {
 	case 1:
-		if canBeFloatImplicitly(args[0], argts[0]) {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok {
+			args[0] = arg
 			return nil
 		}
 		if argts[0].Main == shaderir.Mat2 {
@@ -304,12 +333,15 @@ func checkArgsForMat2BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 	case 4:
 		ok := true
 		for i := range argts {
-			if !canBeFloatImplicitly(args[i], argts[i]) {
+			if _, canBeFloat := canBeFloatImplicitly(args[i], argts[i]); !canBeFloat {
 				ok = false
 				break
 			}
 		}
 		if ok {
+			for i := range argts {
+				args[i], _ = canBeFloatImplicitly(args[i], argts[i])
+			}
 			return nil
 		}
 	default:
@@ -330,7 +362,8 @@ func checkArgsForMat3BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 
 	switch len(args) {
 	case 1:
-		if canBeFloatImplicitly(args[0], argts[0]) {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok {
+			args[0] = arg
 			return nil
 		}
 		if argts[0].Main == shaderir.Mat3 {
@@ -345,12 +378,15 @@ func checkArgsForMat3BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 	case 9:
 		ok := true
 		for i := range argts {
-			if !canBeFloatImplicitly(args[i], argts[i]) {
+			if _, canBeFloat := canBeFloatImplicitly(args[i], argts[i]); !canBeFloat {
 				ok = false
 				break
 			}
 		}
 		if ok {
+			for i := range argts {
+				args[i], _ = canBeFloatImplicitly(args[i], argts[i])
+			}
 			return nil
 		}
 	default:
@@ -371,7 +407,8 @@ func checkArgsForMat4BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 
 	switch len(args) {
 	case 1:
-		if canBeFloatImplicitly(args[0], argts[0]) {
+		if arg, ok := canBeFloatImplicitly(args[0], argts[0]); ok {
+			args[0] = arg
 			return nil
 		}
 		if argts[0].Main == shaderir.Mat4 {
@@ -387,12 +424,15 @@ func checkArgsForMat4BuiltinFunc(args []shaderir.Expr, argts []shaderir.Type) er
 	case 16:
 		ok := true
 		for i := range argts {
-			if !canBeFloatImplicitly(args[i], argts[i]) {
+			if _, canBeFloat := canBeFloatImplicitly(args[i], argts[i]); !canBeFloat {
 				ok = false
 				break
 			}
 		}
 		if ok {
+			for i := range argts {
+				args[i], _ = canBeFloatImplicitly(args[i], argts[i])
+			}
 			return nil
 		}
 	default:
