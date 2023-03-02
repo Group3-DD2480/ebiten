@@ -10,9 +10,9 @@ require (
 	github.com/hajimehoshi/oto/v2 v2.4.0-alpha.12
 	github.com/jakecoffman/cp v1.2.1
 	github.com/jezek/xgb v1.1.0
-	github.com/jfreymuth/oggvorbis v1.0.4
+	github.com/jfreymuth/oggvorbis v1.0.5
 	golang.org/x/image v0.5.0
-	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
+	golang.org/x/mobile v0.0.0-20230301163155-e0f57694e12c
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.5.0
 	golang.org/x/tools v0.6.0
