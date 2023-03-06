@@ -646,6 +646,7 @@ func (u *userInterfaceImpl) SetCursor(cursor *glfw.Cursor) {
 	if !u.isRunning() {
 		return
 	}
+    u.SetCursorShape(CursorShapeCustom)
 	u.mainThread.Call(func() {
 		u.window.SetCursor(cursor)
 	})
