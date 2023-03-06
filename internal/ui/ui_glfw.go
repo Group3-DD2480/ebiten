@@ -339,6 +339,17 @@ func (u *userInterfaceImpl) setCursorShape(shape CursorShape) CursorShape {
 	return old
 }
 
+func (u *userInterfaceImpl) createCursor(img image.Image, x, y int) *glfw.Cursor {
+	u.m.Lock()
+	if img == nil {
+		return nil
+	}
+	c := u.CreateCursor(&img, x, y)
+
+	u.m.Unlock()
+	return c
+}
+
 func (u *userInterfaceImpl) isInitWindowDecorated() bool {
 	u.m.RLock()
 	v := u.initWindowDecorated
@@ -629,6 +640,19 @@ func (u *userInterfaceImpl) SetCursorShape(shape CursorShape) {
 	u.mainThread.Call(func() {
 		u.setNativeCursor(shape)
 	})
+}
+
+func (u *userInterfaceImpl) SetCursor(cursor *glfw.Cursor) {
+	if !u.isRunning() {
+		return
+	}
+	u.mainThread.Call(func() {
+		u.window.SetCursor(cursor)
+	})
+}
+
+func (u *userInterfaceImpl) CreateCursor(img *image.Image, hotx, hoty int) *glfw.Cursor {
+	return u.window.CreateCursor(img, hotx, hoty)
 }
 
 func (u *userInterfaceImpl) DeviceScaleFactor() float64 {

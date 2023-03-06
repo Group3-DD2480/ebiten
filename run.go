@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 
 	"github.com/hajimehoshi/ebiten/v2/internal/clock"
+	"github.com/hajimehoshi/ebiten/v2/internal/glfw"
 	"github.com/hajimehoshi/ebiten/v2/internal/ui"
 )
 
@@ -375,6 +376,20 @@ func CursorShape() CursorShapeType {
 // SetCursorShape is concurrent-safe.
 func SetCursorShape(shape CursorShapeType) {
 	ui.Get().SetCursorShape(shape)
+}
+
+// SetCursor sets the cursor.
+//
+// SetCursor is concurrent-safe.
+func SetCursor(cursor *glfw.Cursor) {
+	ui.Get().SetCursor(cursor)
+}
+
+// CreateCursor creates a cursor from the given image.
+//
+// CreateCursor is concurrent-safe.
+func CreateCursor(img *image.Image, hotx, hoty int) *glfw.Cursor {
+	return ui.Get().CreateCursor(img, hotx, hoty)
 }
 
 // IsFullscreen reports whether the current mode is fullscreen or not.

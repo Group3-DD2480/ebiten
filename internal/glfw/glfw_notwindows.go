@@ -182,6 +182,11 @@ func (w *Window) SetCursor(cursor *Cursor) {
 	w.w.SetCursor(c)
 }
 
+func (w *Window) CreateCursor(image *image.Image, x, y int) *Cursor {
+	c := glfw.CreateCursor(*image, x, y)
+	return &Cursor{c: c}
+}
+
 func (w *Window) SetCloseCallback(cbfun CloseCallback) (previous CloseCallback) {
 	w.w.SetCloseCallback(cbfun)
 	return ToCloseCallback(nil) // TODO
