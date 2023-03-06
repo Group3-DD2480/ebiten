@@ -39,4 +39,5 @@ const (
 	CursorShapePointer   CursorShapeType = ui.CursorShapePointer
 	CursorShapeEWResize  CursorShapeType = ui.CursorShapeEWResize
 	CursorShapeNSResize  CursorShapeType = ui.CursorShapeNSResize
+	CursorShapeCustom    CursorShapeType = ui.CursorShapeCustom
 )
