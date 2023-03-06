@@ -620,7 +620,7 @@ func (u *userInterfaceImpl) CursorShape() CursorShape {
 
 func (u *userInterfaceImpl) SetCursorShape(shape CursorShape) {
 	old := u.setCursorShape(shape)
-	if old == shape {
+	if old == shape || shape == CursorShapeCustom {
 		return
 	}
 	if !u.isRunning() {
