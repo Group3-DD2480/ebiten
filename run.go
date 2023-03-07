@@ -392,6 +392,13 @@ func CreateCursor(img *image.Image, hotx, hoty int) *glfw.Cursor {
 	return ui.Get().CreateCursor(img, hotx, hoty)
 }
 
+// DestroyCursor destroys the given cursor.
+//
+// DestroyCursor is concurrent-safe.
+func DestroyCursor(cursor *glfw.Cursor) {
+	ui.Get().DestroyCursor(cursor)
+}
+
 // IsFullscreen reports whether the current mode is fullscreen or not.
 //
 // IsFullscreen always returns false on mobiles.
