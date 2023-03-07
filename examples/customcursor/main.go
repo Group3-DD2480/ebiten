@@ -59,7 +59,8 @@ func (g *Game) Update() error {
 	}
 
 	// If the cursor is not in any grid, set the cursor to nil.
-	// Setting the cursor to nil will reset the cursor to the default cursor.
+	// Setting the cursor to nil will reset the cursor to the
+	// cursor chosen by the operating system.
 	if !cursorInGrid {
 		ebiten.SetCursor(nil)
 		currentCursor = nil
@@ -113,6 +114,7 @@ func init() {
 
 func main() {
 
+	// Sets the width of the margins around the grids.
 	marginedWidth := 50
 
 	g := &Game{
@@ -122,6 +124,8 @@ func main() {
 		},
 		gridColors: map[image.Rectangle]color.Color{},
 	}
+
+	// Set the colors of the grids.
 	for rect, c := range g.grids {
 		clr := color.RGBA{0x40, 0x40, 0x40, 0xff}
 		if c == ebitenCursor {
