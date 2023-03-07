@@ -23,10 +23,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	resources "github.com/hajimehoshi/ebiten/v2/examples/resources/images/flappy"
 	"github.com/hajimehoshi/ebiten/v2/internal/glfw"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	resources "github.com/hajimehoshi/ebiten/v2/examples/resources/images/flappy"
 )
 
 const (
@@ -47,21 +46,23 @@ type Sprite struct {
 
 func (g *Game) Update() error {
 	pt := image.Pt(ebiten.CursorPosition())
+
+	cursorInGrid := false
+
 	for r, cursor := range g.grids {
 		if pt.In(r) {
 			ebiten.SetCursor(cursor)
 			currentCursor = cursor
+			cursorInGrid = true
 			break
 		}
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyC) {
-		switch ebiten.CursorMode() {
-		case ebiten.CursorModeVisible:
-			ebiten.SetCursorMode(ebiten.CursorModeHidden)
-		case ebiten.CursorModeHidden:
-			ebiten.SetCursorMode(ebiten.CursorModeVisible)
-		}
+	// If the cursor is not in any grid, set the cursor to nil.
+	// Setting the cursor to nil will reset the cursor to the default cursor.
+	if !cursorInGrid {
+		ebiten.SetCursor(nil)
+		currentCursor = nil
 	}
 
 	return nil
@@ -72,10 +73,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		vector.DrawFilledRect(screen, float32(r.Min.X), float32(r.Min.Y), float32(r.Dx()), float32(r.Dy()), c)
 	}
 
+	// Write the current cursor mode to the screen.
 	if currentCursor == ebitenCursor {
 		ebitenutil.DebugPrint(screen, "Cursor: Ebiten")
 	} else if currentCursor == gopherCursor {
 		ebitenutil.DebugPrint(screen, "Cursor: Gopher")
+	} else {
+		ebitenutil.DebugPrint(screen, "Cursor: Default")
 	}
 
 }
@@ -90,6 +94,10 @@ func createCustomCursor(sourceImage []byte) *glfw.Cursor {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Create a cursor from the image.
+	// The first argument is the image to be used as the cursor.
+	// The second and third arguments are the x and y coordinates of the cursor hotspot.
 	return ebiten.CreateCursor(&img, 0, 0)
 }
 
@@ -98,24 +106,19 @@ var gopherCursor *glfw.Cursor
 var currentCursor *glfw.Cursor
 
 func init() {
+	// Create custom cursors.
 	ebitenCursor = createCustomCursor(images.Ebiten_png)
 	gopherCursor = createCustomCursor(resources.Gopher_png)
 }
 
 func main() {
 
-	//ebiten.SetCursor(ebitenCursor)
-
 	marginedWidth := 50
 
 	g := &Game{
 		grids: map[image.Rectangle]*glfw.Cursor{
-			image.Rect(marginedWidth, marginedWidth, screenWidth/2, screenHeight-marginedWidth): ebitenCursor,
+			image.Rect(marginedWidth, marginedWidth, screenWidth/2, screenHeight-marginedWidth):             ebitenCursor,
 			image.Rect(screenWidth/2, marginedWidth, screenWidth-marginedWidth, screenHeight-marginedWidth): gopherCursor,
-			// image.Rect(300, 100, 400, 200): ebitenCursor,
-			// image.Rect(100, 200, 200, 300): gopherCursor,
-			// image.Rect(200, 200, 300, 300): ebitenCursor,
-			// image.Rect(300, 200, 400, 300): gopherCursor,
 		},
 		gridColors: map[image.Rectangle]color.Color{},
 	}
