@@ -16,7 +16,6 @@ package restorable
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/hajimehoshi/ebiten/v2/internal/debug"
 	"github.com/hajimehoshi/ebiten/v2/internal/graphicscommand"
@@ -33,10 +32,9 @@ func needsRestoring() bool {
 	return forceRestoring || needsRestoringByGraphicsDriver
 }
 
-// alwaysReadPixelsFromGPU reports whether ReadPixels alwasy reads pixels from GPU or not.
-// This is true for low-end machines like 32bit architecture without much memory.
-func alwaysReadPixelsFromGPU() bool {
-	return !needsRestoring() && unsafe.Sizeof(uintptr(0)) < 8
+// AlwaysReadPixelsFromGPU reports whether ReadPixels always reads pixels from GPU or not.
+func AlwaysReadPixelsFromGPU() bool {
+	return !needsRestoring()
 }
 
 // EnableRestoringForTesting forces to enable restoring for testing.
@@ -224,9 +222,7 @@ func (i *images) restore(graphicsDriver graphicsdriver.Graphics) error {
 	}
 	images := map[*Image]struct{}{}
 	for i := range i.images {
-		if !i.priority {
-			images[i] = struct{}{}
-		}
+		images[i] = struct{}{}
 	}
 	edges := map[edge]struct{}{}
 	for t := range images {
@@ -235,12 +231,7 @@ func (i *images) restore(graphicsDriver graphicsdriver.Graphics) error {
 		}
 	}
 
-	sorted := []*Image{}
-	for i := range i.images {
-		if i.priority {
-			sorted = append(sorted, i)
-		}
-	}
+	var sorted []*Image
 	for len(images) > 0 {
 		// current represents images that have no incoming edges.
 		current := map[*Image]struct{}{}
