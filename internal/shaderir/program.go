@@ -94,20 +94,10 @@ const (
 	Discard
 )
 
-type ConstType int
-
-const (
-	ConstTypeNone ConstType = iota
-	ConstTypeBool
-	ConstTypeInt
-	ConstTypeFloat
-)
-
 type Expr struct {
 	Type        ExprType
 	Exprs       []Expr
 	Const       constant.Value
-	ConstType   ConstType
 	BuiltinFunc BuiltinFunc
 	Swizzling   string
 	Index       int

@@ -33,7 +33,6 @@ type variable struct {
 type constant struct {
 	name  string
 	typ   shaderir.Type
-	ctyp  shaderir.ConstType
 	value gconstant.Value
 }
 
@@ -495,14 +494,22 @@ func (s *compileState) parseVariable(block *block, fname string, vs *ast.ValueSp
 					s.addError(vs.Pos(), fmt.Sprintf("the numbers of lhs and rhs don't match"))
 				}
 				t = ts[0]
+				if t.Main == shaderir.None {
+					switch es[0].Const.Kind() {
+					case gconstant.Int:
+						t.Main = shaderir.Int
+					case gconstant.Float:
+						t.Main = shaderir.Float
+					}
+				}
 			}
 
 			if es[0].Type == shaderir.NumberExpr {
 				switch t.Main {
 				case shaderir.Int:
-					es[0].ConstType = shaderir.ConstTypeInt
+					es[0].Const = gconstant.ToInt(es[0].Const)
 				case shaderir.Float:
-					es[0].ConstType = shaderir.ConstTypeFloat
+					es[0].Const = gconstant.ToFloat(es[0].Const)
 				}
 			}
 
@@ -624,22 +631,16 @@ func (s *compileState) parseConstant(block *block, fname string, vs *ast.ValueSp
 		}
 
 		c := es[0].Const
-		constType := es[0].ConstType
 		switch t.Main {
-		case shaderir.Bool:
-			constType = shaderir.ConstTypeBool
 		case shaderir.Int:
-			constType = shaderir.ConstTypeInt
 			c = gconstant.ToInt(c)
 		case shaderir.Float:
-			constType = shaderir.ConstTypeFloat
 			c = gconstant.ToFloat(c)
 		}
 
 		cs = append(cs, constant{
 			name:  name,
 			typ:   t,
-			ctyp:  constType,
 			value: c,
 		})
 	}

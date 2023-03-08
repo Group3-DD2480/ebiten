@@ -25,12 +25,10 @@ import (
 )
 
 func (cs *compileState) forceToInt(node ast.Node, expr *shaderir.Expr) bool {
-	if !canTruncateToInteger(expr.Const) {
+	if !canTruncateToInteger(&expr.Const) {
 		cs.addError(node.Pos(), fmt.Sprintf("constant %s truncated to integer", expr.Const.String()))
 		return false
 	}
-	expr.Const = gconstant.ToInt(expr.Const)
-	expr.ConstType = shaderir.ConstTypeInt
 	return true
 }
 
@@ -116,10 +114,9 @@ func (cs *compileState) parseStmt(block *block, fname string, stmt ast.Stmt, inP
 					}
 				case shaderir.Float:
 					if rhs[0].Const != nil &&
-						rhs[0].ConstType != shaderir.ConstTypeInt &&
+						rts[0].Main != shaderir.Int &&
 						gconstant.ToFloat(rhs[0].Const).Kind() != gconstant.Unknown {
 						rhs[0].Const = gconstant.ToFloat(rhs[0].Const)
-						rhs[0].ConstType = shaderir.ConstTypeFloat
 					} else {
 						cs.addError(stmt.Pos(), fmt.Sprintf("invalid operation: mismatched types %s and %s", lts[0].String(), rts[0].String()))
 						return nil, false
@@ -128,11 +125,10 @@ func (cs *compileState) parseStmt(block *block, fname string, stmt ast.Stmt, inP
 					if (op == shaderir.MatrixMul || op == shaderir.Div) &&
 						(rts[0].Main == shaderir.Float ||
 							(rhs[0].Const != nil &&
-								rhs[0].ConstType != shaderir.ConstTypeInt &&
+								rts[0].Main != shaderir.Int &&
 								gconstant.ToFloat(rhs[0].Const).Kind() != gconstant.Unknown)) {
 						if rhs[0].Const != nil {
 							rhs[0].Const = gconstant.ToFloat(rhs[0].Const)
-							rhs[0].ConstType = shaderir.ConstTypeFloat
 						}
 					} else if op == shaderir.MatrixMul && ((lts[0].Main == shaderir.Vec2 && rts[0].Main == shaderir.Mat2) ||
 						(lts[0].Main == shaderir.Vec3 && rts[0].Main == shaderir.Mat3) ||
@@ -141,11 +137,10 @@ func (cs *compileState) parseStmt(block *block, fname string, stmt ast.Stmt, inP
 					} else if (op == shaderir.MatrixMul || op == shaderir.ComponentWiseMul || lts[0].IsVector()) &&
 						(rts[0].Main == shaderir.Float ||
 							(rhs[0].Const != nil &&
-								rhs[0].ConstType != shaderir.ConstTypeInt &&
+								rts[0].Main != shaderir.Int &&
 								gconstant.ToFloat(rhs[0].Const).Kind() != gconstant.Unknown)) {
 						if rhs[0].Const != nil {
 							rhs[0].Const = gconstant.ToFloat(rhs[0].Const)
-							rhs[0].ConstType = shaderir.ConstTypeFloat
 						}
 					} else {
 						cs.addError(stmt.Pos(), fmt.Sprintf("invalid operation: mismatched types %s and %s", lts[0].String(), rts[0].String()))
@@ -241,6 +236,12 @@ func (cs *compileState) parseStmt(block *block, fname string, stmt ast.Stmt, inP
 
 		vartype := pseudoBlock.vars[0].typ
 		init := ss[0].Exprs[1].Const
+		switch vartype.Main {
+		case shaderir.Float:
+			init = gconstant.ToFloat(init)
+		case shaderir.Int:
+			init = gconstant.ToInt(init)
+		}
 
 		exprs, ts, ss, ok := cs.parseExpr(pseudoBlock, fname, stmt.Cond, true)
 		if !ok {
@@ -437,9 +438,8 @@ func (cs *compileState) parseStmt(block *block, fname string, stmt ast.Stmt, inP
 					Exprs: []shaderir.Expr{
 						exprs[0],
 						{
-							Type:      shaderir.NumberExpr,
-							Const:     gconstant.MakeInt64(1),
-							ConstType: shaderir.ConstTypeInt,
+							Type:  shaderir.NumberExpr,
+							Const: gconstant.MakeInt64(1),
 						},
 					},
 				},
@@ -501,6 +501,7 @@ func (cs *compileState) parseStmt(block *block, fname string, stmt ast.Stmt, inP
 					}
 					t = shaderir.Type{Main: shaderir.Int}
 				case shaderir.Float:
+					canTruncateToFloat(&expr.Const)
 					t = shaderir.Type{Main: shaderir.Float}
 				}
 			}
@@ -674,9 +675,9 @@ func (cs *compileState) assign(block *block, fname string, pos token.Pos, lhs, r
 				}
 				switch t.Main {
 				case shaderir.Int:
-					r[0].ConstType = shaderir.ConstTypeInt
+					r[0].Const = gconstant.ToInt(r[0].Const)
 				case shaderir.Float:
-					r[0].ConstType = shaderir.ConstTypeFloat
+					r[0].Const = gconstant.ToFloat(r[0].Const)
 				}
 			}
 
@@ -820,9 +821,9 @@ func canAssign(lt *shaderir.Type, rt *shaderir.Type, rc gconstant.Value) bool {
 	case shaderir.Bool:
 		return rc.Kind() == gconstant.Bool
 	case shaderir.Int:
-		return canTruncateToInteger(rc)
+		return canTruncateToInteger(&rc)
 	case shaderir.Float:
-		return gconstant.ToFloat(rc).Kind() != gconstant.Unknown
+		return canTruncateToFloat(&rc)
 	}
 
 	return false

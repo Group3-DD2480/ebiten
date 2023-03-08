@@ -67,7 +67,7 @@ func ifStmt(cond shaderir.Expr, block *shaderir.Block, elseBlock *shaderir.Block
 	}
 }
 
-func forStmt(t shaderir.Type, index, init, end int, op shaderir.Op, delta int, block *shaderir.Block) shaderir.Stmt {
+func intForStmt(t shaderir.Type, index, init, end int, op shaderir.Op, delta int, block *shaderir.Block) shaderir.Stmt {
 	return shaderir.Stmt{
 		Type:        shaderir.For,
 		Blocks:      []*shaderir.Block{block},
@@ -77,6 +77,19 @@ func forStmt(t shaderir.Type, index, init, end int, op shaderir.Op, delta int, b
 		ForEnd:      constant.MakeInt64(int64(end)),
 		ForOp:       op,
 		ForDelta:    constant.MakeInt64(int64(delta)),
+	}
+}
+
+func floatForStmt(t shaderir.Type, index, init, end int, op shaderir.Op, delta int, block *shaderir.Block) shaderir.Stmt {
+	return shaderir.Stmt{
+		Type:        shaderir.For,
+		Blocks:      []*shaderir.Block{block},
+		ForVarType:  t,
+		ForVarIndex: index,
+		ForInit:     constant.MakeFloat64(float64(init)),
+		ForEnd:      constant.MakeFloat64(float64(end)),
+		ForOp:       op,
+		ForDelta:    constant.MakeFloat64(float64(delta)),
 	}
 }
 
@@ -688,7 +701,7 @@ void F0(in float l0, in float l1, out float l2) {
 								{},
 							},
 							3,
-							forStmt(
+							intForStmt(
 								shaderir.Type{Main: shaderir.Int},
 								3,
 								0,
@@ -743,7 +756,7 @@ void F0(in float l0, in float l1, out float l2) {
 								{},
 							},
 							3,
-							forStmt(
+							intForStmt(
 								shaderir.Type{Main: shaderir.Int},
 								3,
 								0,
@@ -813,7 +826,7 @@ void F0(float l0, float l1, thread float& l2) {
 								{},
 							},
 							3,
-							forStmt(
+							intForStmt(
 								shaderir.Type{Main: shaderir.Int},
 								3,
 								0,
@@ -831,7 +844,7 @@ void F0(float l0, float l1, thread float& l2) {
 									),
 								),
 							),
-							forStmt(
+							floatForStmt(
 								shaderir.Type{Main: shaderir.Float},
 								4,
 								0,
