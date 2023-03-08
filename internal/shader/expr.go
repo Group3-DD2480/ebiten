@@ -285,11 +285,7 @@ func (cs *compileState) parseExpr(block *block, fname string, expr ast.Expr, mar
 				fallthrough
 			default:
 				v = gconstant.BinaryOp(lhs[0].Const, op, rhs[0].Const)
-				if v.Kind() == gconstant.Float {
-					t = shaderir.Type{Main: shaderir.Float}
-				} else {
-					t = shaderir.Type{Main: shaderir.Int}
-				}
+				t = shaderir.Type{}
 			}
 
 			return []shaderir.Expr{
