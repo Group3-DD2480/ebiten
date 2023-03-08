@@ -124,6 +124,19 @@ type Image struct {
 	// staleRegions is not used when AlwaysReadPixelsFromGPU() returns true.
 	staleRegions []image.Rectangle
 
+	// pixelsCache is cached byte slices for pixels.
+	// pixelsCache is just a cache to avoid allocations (#2375).
+	//
+	// A key is the region and a value is a byte slice for the region.
+	//
+	// It is fine to reuse the same byte slice for the same region for basePixels,
+	// as old pixels for the same region will be invalidated at basePixel.AddOrReplace.
+	pixelsCache map[image.Rectangle][]byte
+
+	// regionsCache is cached regions.
+	// regionsCache is just a cache to avoid allocations (#2375).
+	regionsCache []image.Rectangle
+
 	imageType ImageType
 }
 
@@ -237,6 +250,9 @@ func (i *Image) makeStale(rect image.Rectangle) {
 
 	// Clear pixels to save memory.
 	for _, r := range i.staleRegions[origNum:] {
+		if r.Empty() {
+			continue
+		}
 		i.basePixels.Clear(r.Min.X, r.Min.Y, r.Dx(), r.Dy())
 	}
 
@@ -461,9 +477,13 @@ func (i *Image) makeStaleIfDependingOnShader(shader *Shader) {
 func (i *Image) readPixelsFromGPU(graphicsDriver graphicsdriver.Graphics) error {
 	var rs []image.Rectangle
 	if i.stale {
-		rs = append(rs, i.staleRegions...)
+		rs = i.staleRegions
 	} else {
-		rs = i.appendRegionsForDrawTriangles(rs)
+		i.regionsCache = i.appendRegionsForDrawTriangles(i.regionsCache)
+		defer func() {
+			i.regionsCache = i.regionsCache[:0]
+		}()
+		rs = i.regionsCache
 	}
 
 	for _, r := range rs {
@@ -471,12 +491,21 @@ func (i *Image) readPixelsFromGPU(graphicsDriver graphicsdriver.Graphics) error 
 			continue
 		}
 
-		pix := make([]byte, 4*r.Dx()*r.Dy())
+		if i.pixelsCache == nil {
+			i.pixelsCache = map[image.Rectangle][]byte{}
+		}
+
+		pix, ok := i.pixelsCache[r]
+		if !ok {
+			pix = make([]byte, 4*r.Dx()*r.Dy())
+			i.pixelsCache[r] = pix
+		}
 		if err := i.image.ReadPixels(graphicsDriver, pix, r.Min.X, r.Min.Y, r.Dx(), r.Dy()); err != nil {
 			return err
 		}
 		i.basePixels.AddOrReplace(pix, r.Min.X, r.Min.Y, r.Dx(), r.Dy())
 	}
+
 	i.clearDrawTrianglesHistory()
 	i.stale = false
 	i.staleRegions = i.staleRegions[:0]
@@ -591,13 +620,25 @@ func (i *Image) restore(graphicsDriver graphicsdriver.Graphics) error {
 
 	// In order to clear the draw-triangles history, read pixels from GPU.
 	if len(i.drawTrianglesHistory) > 0 {
-		var rs []image.Rectangle
-		rs = i.appendRegionsForDrawTriangles(rs)
-		for _, r := range rs {
+		i.regionsCache = i.appendRegionsForDrawTriangles(i.regionsCache)
+		defer func() {
+			i.regionsCache = i.regionsCache[:0]
+		}()
+
+		for _, r := range i.regionsCache {
 			if r.Empty() {
 				continue
 			}
-			pix := make([]byte, 4*r.Dx()*r.Dy())
+
+			if i.pixelsCache == nil {
+				i.pixelsCache = map[image.Rectangle][]byte{}
+			}
+
+			pix, ok := i.pixelsCache[r]
+			if !ok {
+				pix = make([]byte, 4*r.Dx()*r.Dy())
+				i.pixelsCache[r] = pix
+			}
 			if err := gimg.ReadPixels(graphicsDriver, pix, r.Min.X, r.Min.Y, r.Dx(), r.Dy()); err != nil {
 				return err
 			}
@@ -620,6 +661,7 @@ func (i *Image) Dispose() {
 	i.image.Dispose()
 	i.image = nil
 	i.basePixels = Pixels{}
+	i.pixelsCache = nil
 	i.clearDrawTrianglesHistory()
 	i.stale = false
 	i.staleRegions = i.staleRegions[:0]
@@ -650,29 +692,37 @@ func (i *Image) InternalSize() (int, int) {
 }
 
 func (i *Image) appendRegionsForDrawTriangles(regions []image.Rectangle) []image.Rectangle {
-	var rs []image.Rectangle
+	origIndex := len(regions)
 	for _, d := range i.drawTrianglesHistory {
 		r := regionToRectangle(d.dstRegion)
 		if r.Empty() {
 			continue
 		}
-		for i, rr := range rs {
+
+		// Replace duplicated regions with empty regions.
+		for i, rr := range regions[origIndex:] {
 			if rr.Empty() {
 				continue
 			}
 			if rr.In(r) {
-				rs[i] = image.Rectangle{}
+				regions[origIndex+i] = image.Rectangle{}
 			}
 		}
-		rs = append(rs, r)
+
+		regions = append(regions, r)
 	}
-	for _, r := range rs {
+
+	// Remove empty regions.
+	n := origIndex
+	for _, r := range regions[origIndex:] {
 		if r.Empty() {
 			continue
 		}
-		regions = append(regions, r)
+		regions[n] = r
+		n++
 	}
-	return regions
+
+	return regions[:n]
 }
 
 func regionToRectangle(region graphicsdriver.Region) image.Rectangle {
