@@ -187,6 +187,10 @@ func (w *Window) CreateCursor(image *image.Image, x, y int) *Cursor {
 	return &Cursor{c: c}
 }
 
+func (w *Window) DestroyCursor(cursor *Cursor) {
+	cursor.c.Destroy()
+}
+
 func (w *Window) SetCloseCallback(cbfun CloseCallback) (previous CloseCallback) {
 	w.w.SetCloseCallback(cbfun)
 	return ToCloseCallback(nil) // TODO

@@ -656,6 +656,10 @@ func (u *userInterfaceImpl) CreateCursor(img *image.Image, hotx, hoty int) *glfw
 	return u.window.CreateCursor(img, hotx, hoty)
 }
 
+func (u *userInterfaceImpl) DestroyCursor(cursor *glfw.Cursor) {
+	u.window.DestroyCursor(cursor)
+}
+
 func (u *userInterfaceImpl) DeviceScaleFactor() float64 {
 	if !u.isRunning() {
 		return u.initDeviceScaleFactor
